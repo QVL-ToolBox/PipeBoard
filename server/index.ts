@@ -1,9 +1,11 @@
 import express from "express";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ConfigError, loadGroupsConfig } from "./config.ts";
 import type { GroupsConfig } from "./config.ts";
+import { createApiRouter } from "./routes.ts";
+import { configurePoller } from "./poller.ts";
 
 const HOST = "127.0.0.1";
 const PORT = 5191;
@@ -21,6 +23,7 @@ function loadGroupsConfigOrExit(): GroupsConfig {
 }
 
 const groupsConfig = loadGroupsConfigOrExit();
+configurePoller(groupsConfig.groups);
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const clientBuildDir = resolve(serverDir, "..", "dist");
@@ -30,9 +33,9 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const app = express();
 
-app.get("/api/status", (_req: Request, res: Response) => {
-  res.json({ ok: true });
-});
+app.use(express.json());
+
+app.use("/api", createApiRouter());
 
 app.all("/api/{*splat}", (_req: Request, res: Response) => {
   res.status(404).json({ error: "Not Found" });
@@ -44,6 +47,14 @@ if (isProduction) {
     res.sendFile(clientEntry);
   });
 }
+
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (error instanceof SyntaxError) {
+    res.status(400).json({ error: "Invalid JSON body" });
+    return;
+  }
+  res.status(500).json({ error: "Internal Server Error" });
+});
 
 app.listen(PORT, HOST, () => {
   console.log(
