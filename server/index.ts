@@ -2,9 +2,12 @@ import express from "express";
 import type { Request, Response } from "express";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { loadGroupsConfig } from "./config.ts";
 
 const HOST = "127.0.0.1";
 const PORT = 5191;
+
+const groupsConfig = loadGroupsConfig();
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const clientBuildDir = resolve(serverDir, "..", "dist");
@@ -30,5 +33,7 @@ if (isProduction) {
 }
 
 app.listen(PORT, HOST, () => {
-  console.log(`PipeBoard backend listening on http://${HOST}:${PORT}`);
+  console.log(
+    `PipeBoard backend listening on http://${HOST}:${PORT} (${groupsConfig.groups.length} groups configures)`,
+  );
 });
