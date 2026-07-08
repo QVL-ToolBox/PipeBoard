@@ -1,6 +1,6 @@
 import type { PipelinesResponse, StatusResponse } from "./types";
 
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor() {
     super("Une erreur est survenue. Veuillez réessayer.");
     this.name = "ApiError";

@@ -18,19 +18,22 @@ export function usePipelines(): UsePipelinesResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const mounted = useRef(true);
+  const sequence = useRef(0);
 
   const load = useCallback(async () => {
+    const current = ++sequence.current;
+    const isStale = () => !mounted.current || current !== sequence.current;
     try {
       const [nextStatus, nextData] = await Promise.all([fetchStatus(), fetchPipelines()]);
-      if (!mounted.current) return;
+      if (isStale()) return;
       setStatus(nextStatus);
       setData(nextData);
       setError(false);
     } catch {
-      if (!mounted.current) return;
+      if (isStale()) return;
       setError(true);
     } finally {
-      if (mounted.current) setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, []);
 

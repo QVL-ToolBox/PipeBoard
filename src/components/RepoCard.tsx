@@ -15,17 +15,25 @@ export interface RepoCardProps {
 }
 
 export function RepoCard({ repo }: RepoCardProps) {
+  const repoUrl = toHttpsUrl(repo.webUrl);
   const pipelineUrl = repo.pipeline ? toHttpsUrl(repo.pipeline.webUrl) : null;
 
   return (
     <Card title={repo.name} subtitle={repo.defaultBranch ?? "Aucune branche par défaut"}>
       <Stack gap="sm" alignItems="start">
         <PipelineBadge pipeline={repo.pipeline} />
-        {pipelineUrl ? (
-          <Link href={pipelineUrl} size="small">
-            Voir le pipeline
-          </Link>
-        ) : null}
+        <Stack direction="row" gap="md" wrap>
+          {repoUrl ? (
+            <Link href={repoUrl} size="small" color="muted">
+              Ouvrir le dépôt
+            </Link>
+          ) : null}
+          {pipelineUrl ? (
+            <Link href={pipelineUrl} size="small">
+              Voir le pipeline
+            </Link>
+          ) : null}
+        </Stack>
       </Stack>
     </Card>
   );
