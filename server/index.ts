@@ -2,12 +2,25 @@ import express from "express";
 import type { Request, Response } from "express";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { loadGroupsConfig } from "./config.ts";
+import { ConfigError, loadGroupsConfig } from "./config.ts";
+import type { GroupsConfig } from "./config.ts";
 
 const HOST = "127.0.0.1";
 const PORT = 5191;
 
-const groupsConfig = loadGroupsConfig();
+function loadGroupsConfigOrExit(): GroupsConfig {
+  try {
+    return loadGroupsConfig();
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      console.error(`[PipeBoard] Configuration des groups invalide.\n${error.message}`);
+      process.exit(1);
+    }
+    throw error;
+  }
+}
+
+const groupsConfig = loadGroupsConfigOrExit();
 
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const clientBuildDir = resolve(serverDir, "..", "dist");

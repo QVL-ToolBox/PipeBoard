@@ -29,6 +29,12 @@ npm ci
 
 Le front proxifie `/api` vers le backend (`http://127.0.0.1:5191`). L'hôte est forcé sur `127.0.0.1` (jamais `0.0.0.0`).
 
+## Backend
+
+Le code serveur vit dans `server/` (TypeScript strict, `tsconfig.server.json`). `tsx` est l'unique runtime : les imports relatifs entre modules serveur portent l'extension `.ts` explicite (option `allowImportingTsExtensions`), convention que tout nouveau module backend doit suivre.
+
+La configuration des groups à surveiller est lue au démarrage depuis `groups.json` (racine, gitignoré) ; copiez `groups.json.example` pour démarrer.
+
 ## Authentification GitLab
 
 Le PAT GitLab requis (configuré ultérieurement) devra avoir le scope **`read_api`** uniquement.
