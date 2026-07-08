@@ -37,6 +37,10 @@ export function getStatusSnapshot(): StatusSnapshot {
   };
 }
 
+export function getGroupSnapshot(group: string): GroupPipelines | undefined {
+  return state.groups.find((entry) => entry.group === group);
+}
+
 export function getPollableRepos(): PollableRepo[] {
   const repos: PollableRepo[] = [];
   for (const group of state.groups) {

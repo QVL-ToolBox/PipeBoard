@@ -1,6 +1,6 @@
 import type { GroupReference } from "./config.ts";
 import * as cache from "./cache.ts";
-import { clearToken, getToken } from "./token.ts";
+import { clearToken, getToken, getTokenEpoch } from "./token.ts";
 import {
   GitLabError,
   fetchGroupInfo,
@@ -22,6 +22,8 @@ interface RepoPipelineResult {
 let configuredGroups: GroupReference[] = [];
 let listingTimer: NodeJS.Timeout | null = null;
 let statusTimer: NodeJS.Timeout | null = null;
+let listingInFlight = false;
+let statusInFlight = false;
 
 export function configurePoller(groups: GroupReference[]): void {
   configuredGroups = groups;
@@ -84,7 +86,8 @@ async function resolveGroupName(
 ): Promise<string> {
   try {
     const info = await fetchGroupInfo(token, groupRef);
-    return info.name.trim().length > 0 ? info.name : fallback;
+    const trimmed = info.name.trim();
+    return trimmed.length > 0 ? trimmed : fallback;
   } catch (error) {
     if (isAuthError(error) || isRateLimitError(error)) {
       throw error;
@@ -98,32 +101,49 @@ async function buildGroupListing(
   groupRef: GroupReference,
 ): Promise<GroupPipelines> {
   const normalized = String(groupRef);
-  const name = await resolveGroupName(token, groupRef, normalized);
-  const projects = await fetchGroupProjects(token, groupRef);
-  const repos: Repo[] = projects.map((project) => ({
-    id: project.id,
-    name: project.name,
-    pathWithNamespace: project.path_with_namespace,
-    webUrl: project.web_url,
-    defaultBranch: project.default_branch,
-    pipeline: null,
-  }));
-  return { group: normalized, name, repos };
+  try {
+    const name = await resolveGroupName(token, groupRef, normalized);
+    const projects = await fetchGroupProjects(token, groupRef);
+    const repos: Repo[] = projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      pathWithNamespace: project.path_with_namespace,
+      webUrl: project.web_url,
+      defaultBranch: project.default_branch,
+      pipeline: null,
+    }));
+    return { group: normalized, name, repos };
+  } catch (error) {
+    if (isAuthError(error) || isRateLimitError(error)) {
+      throw error;
+    }
+    console.error("[PipeBoard] GitLab listing failed for a configured group, keeping last known data");
+    return cache.getGroupSnapshot(normalized) ?? { group: normalized, name: normalized, repos: [] };
+  }
 }
 
 async function runListingCycle(): Promise<void> {
+  if (listingInFlight) {
+    return;
+  }
   const token = getToken();
   if (token === null) {
     return;
   }
+  const epoch = getTokenEpoch();
+  listingInFlight = true;
   try {
     const groups = await mapWithConcurrency(configuredGroups, (groupRef) =>
       buildGroupListing(token, groupRef),
     );
-    cache.replaceListing(groups);
-    cache.setRateLimited(false);
+    if (getTokenEpoch() === epoch) {
+      cache.replaceListing(groups);
+      cache.setRateLimited(false);
+    }
   } catch (error) {
     handleCycleError(error);
+  } finally {
+    listingInFlight = false;
   }
 }
 
@@ -154,6 +174,9 @@ async function fetchRepoPipeline(
 }
 
 async function runStatusCycle(): Promise<void> {
+  if (statusInFlight) {
+    return;
+  }
   const token = getToken();
   if (token === null) {
     return;
@@ -161,20 +184,27 @@ async function runStatusCycle(): Promise<void> {
   const repos = cache.getPollableRepos();
   if (repos.length === 0) {
     cache.markStatusRefresh();
+    cache.setRateLimited(false);
     return;
   }
+  const epoch = getTokenEpoch();
+  statusInFlight = true;
   try {
     const results = await mapWithConcurrency(repos, (repo) => fetchRepoPipeline(token, repo));
-    const updates = new Map<number, RepoPipeline | null>();
-    for (const result of results) {
-      if (result.resolved) {
-        updates.set(result.id, result.pipeline);
+    if (getTokenEpoch() === epoch) {
+      const updates = new Map<number, RepoPipeline | null>();
+      for (const result of results) {
+        if (result.resolved) {
+          updates.set(result.id, result.pipeline);
+        }
       }
+      cache.applyPipelineUpdates(updates);
+      cache.markStatusRefresh();
+      cache.setRateLimited(false);
     }
-    cache.applyPipelineUpdates(updates);
-    cache.markStatusRefresh();
-    cache.setRateLimited(false);
   } catch (error) {
     handleCycleError(error);
+  } finally {
+    statusInFlight = false;
   }
 }
