@@ -33,7 +33,7 @@ Le front proxifie `/api` vers le backend (`http://127.0.0.1:5191`). L'hôte est 
 
 Le code serveur vit dans `server/` (TypeScript strict, `tsconfig.server.json`). `tsx` est l'unique runtime : les imports relatifs entre modules serveur portent l'extension `.ts` explicite (option `allowImportingTsExtensions`), convention que tout nouveau module backend doit suivre.
 
-La configuration des groups à surveiller est lue au démarrage depuis `groups.json` (racine, gitignoré) ; copiez `groups.json.example` pour démarrer.
+Les groups surveillés sont découverts automatiquement après enregistrement du token, via les groups dont le porteur du token est membre (`GET /groups?membership=true`). Les sous-groups descendants sont écartés car le listing des projets est déjà récursif. Aucun fichier de configuration n'est requis.
 
 ## Authentification GitLab
 
