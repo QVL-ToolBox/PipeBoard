@@ -25,8 +25,8 @@ export function getTokenEpoch(): number {
   return epoch;
 }
 
-export function markTokenRejected(): void {
-  rejectedToken = currentToken;
+export function markTokenRejected(token: string): void {
+  rejectedToken = token;
 }
 
 export function getRejectedToken(): string | null {

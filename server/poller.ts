@@ -62,17 +62,22 @@ function isRateLimitError(error: unknown): boolean {
   return error instanceof GitLabError && error.status === 429;
 }
 
-function handleCycleError(error: unknown): void {
+function handleCycleError(error: unknown, epoch: number, token: string): void {
   if (isAuthError(error)) {
+    if (getTokenEpoch() !== epoch) {
+      return;
+    }
     console.error("[PipeBoard] GitLab authentication rejected, token purged and polling stopped");
-    markTokenRejected();
+    markTokenRejected(token);
     clearToken();
     stopPolling();
     cache.setRateLimited(false);
     return;
   }
   if (isRateLimitError(error)) {
-    cache.setRateLimited(true);
+    if (getTokenEpoch() === epoch) {
+      cache.setRateLimited(true);
+    }
     return;
   }
   console.error("[PipeBoard] GitLab polling cycle failed, keeping last known data");
@@ -134,7 +139,7 @@ async function runListingCycle(): Promise<void> {
       cache.setRateLimited(false);
     }
   } catch (error) {
-    handleCycleError(error);
+    handleCycleError(error, epoch, token);
   } finally {
     listingInFlight = false;
   }
@@ -196,7 +201,7 @@ async function runStatusCycle(): Promise<void> {
       cache.setRateLimited(false);
     }
   } catch (error) {
-    handleCycleError(error);
+    handleCycleError(error, epoch, token);
   } finally {
     statusInFlight = false;
   }
