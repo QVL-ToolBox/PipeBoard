@@ -45,3 +45,7 @@ export async function submitToken(token: string): Promise<void> {
 export async function deleteToken(): Promise<void> {
   await requestJson<{ ok: true }>("/api/token", { method: "DELETE" });
 }
+
+export async function triggerRefresh(): Promise<void> {
+  await requestJson<{ ok: true }>("/api/refresh", { method: "POST" });
+}

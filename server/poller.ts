@@ -1,5 +1,5 @@
 import * as cache from "./cache.ts";
-import { clearToken, getToken, getTokenEpoch } from "./token.ts";
+import { clearToken, getToken, getTokenEpoch, markTokenRejected } from "./token.ts";
 import {
   GitLabError,
   fetchGroupProjects,
@@ -45,6 +45,10 @@ export function stopPolling(): void {
   }
 }
 
+export function triggerImmediateRefresh(): void {
+  void bootstrapCycles();
+}
+
 async function bootstrapCycles(): Promise<void> {
   await runListingCycle();
   await runStatusCycle();
@@ -61,6 +65,7 @@ function isRateLimitError(error: unknown): boolean {
 function handleCycleError(error: unknown): void {
   if (isAuthError(error)) {
     console.error("[PipeBoard] GitLab authentication rejected, token purged and polling stopped");
+    markTokenRejected();
     clearToken();
     stopPolling();
     cache.setRateLimited(false);

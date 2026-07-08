@@ -35,6 +35,18 @@ Le code serveur vit dans `server/` (TypeScript strict, `tsconfig.server.json`). 
 
 Les groups surveillés sont découverts automatiquement après enregistrement du token, via les groups dont le porteur du token est membre (`GET /groups?membership=true`). Les sous-groups descendants sont écartés car le listing des projets est déjà récursif. Aucun fichier de configuration n'est requis.
 
+## API
+
+Toutes les routes sont servies sous `/api` (même origine que le front).
+
+- `GET /api/status` — état courant : `tokenSet`, `lastListingRefresh`, `lastStatusRefresh`, `rateLimited`.
+- `GET /api/pipelines` — dernier état connu du cache (arbre groups → repos → pipeline).
+- `POST /api/token` — enregistre le PAT `{ "token": string }` et arme le polling.
+- `POST /api/refresh` — déclenche immédiatement un cycle listing + statuts (fire-and-forget) ; `400` si aucun token n'est configuré.
+- `DELETE /api/token` — purge le token, arrête le polling et vide le cache.
+
 ## Authentification GitLab
 
-Le PAT GitLab requis (configuré ultérieurement) devra avoir le scope **`read_api`** uniquement.
+Le PAT GitLab requis devra avoir le scope **`read_api`** uniquement.
+
+Après un `POST /api/token` réussi, le token est conservé côté serveur en mémoire et dupliqué dans un cookie de session `pipeboard_token` (`httpOnly`, `sameSite=strict`, `path=/api`, sans expiration). À la première requête suivant un redémarrage du client, si la mémoire serveur ne contient plus de token mais que le cookie est présent, le token est restauré et le polling réarmé. Un token rejeté par GitLab (401/403) est mémorisé en mémoire seule : le cookie correspondant est alors effacé sans nouvelle tentative de restauration, ce qui évite toute boucle purge → restauration.
