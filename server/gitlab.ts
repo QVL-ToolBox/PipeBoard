@@ -1,4 +1,3 @@
-import type { GroupReference } from "./config.ts";
 import type { GitLabGroup, GitLabPipeline, GitLabProject } from "./types.ts";
 
 const GITLAB_API_BASE_URL = "https://gitlab.com/api/v4";
@@ -61,35 +60,47 @@ async function requestWithBackoff(
   }
 }
 
-function groupSegment(groupRef: GroupReference): string {
-  return encodeURIComponent(String(groupRef));
-}
-
-export async function fetchGroupInfo(
-  token: string,
-  groupRef: GroupReference,
-): Promise<GitLabGroup> {
-  const response = await requestWithBackoff(token, `/groups/${groupSegment(groupRef)}`, {});
-  if (!response.ok) {
-    throw new GitLabError(response.status, "GitLab group request failed");
+export async function fetchMembershipGroups(token: string): Promise<GitLabGroup[]> {
+  const groups: GitLabGroup[] = [];
+  let page = 1;
+  for (;;) {
+    const response = await requestWithBackoff(token, "/groups", {
+      membership: "true",
+      per_page: "100",
+      page: String(page),
+    });
+    if (!response.ok) {
+      throw new GitLabError(response.status, "GitLab groups request failed");
+    }
+    const batch = (await response.json()) as GitLabGroup[];
+    groups.push(...batch);
+    const nextPage = Number(response.headers.get("x-next-page"));
+    if (!Number.isInteger(nextPage) || nextPage <= 0) {
+      break;
+    }
+    page = nextPage;
   }
-  return (await response.json()) as GitLabGroup;
+  return groups;
 }
 
 export async function fetchGroupProjects(
   token: string,
-  groupRef: GroupReference,
+  groupId: number,
 ): Promise<GitLabProject[]> {
   const projects: GitLabProject[] = [];
   let page = 1;
   for (;;) {
-    const response = await requestWithBackoff(token, `/groups/${groupSegment(groupRef)}/projects`, {
-      include_subgroups: "true",
-      per_page: "100",
-      archived: "false",
-      simple: "true",
-      page: String(page),
-    });
+    const response = await requestWithBackoff(
+      token,
+      `/groups/${encodeURIComponent(String(groupId))}/projects`,
+      {
+        include_subgroups: "true",
+        per_page: "100",
+        archived: "false",
+        simple: "true",
+        page: String(page),
+      },
+    );
     if (!response.ok) {
       throw new GitLabError(response.status, "GitLab projects request failed");
     }

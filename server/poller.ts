@@ -1,14 +1,13 @@
-import type { GroupReference } from "./config.ts";
 import * as cache from "./cache.ts";
 import { clearToken, getToken, getTokenEpoch } from "./token.ts";
 import {
   GitLabError,
-  fetchGroupInfo,
   fetchGroupProjects,
   fetchLatestPipeline,
+  fetchMembershipGroups,
   mapWithConcurrency,
 } from "./gitlab.ts";
-import type { GroupPipelines, PollableRepo, Repo, RepoPipeline } from "./types.ts";
+import type { GitLabGroup, GroupPipelines, PollableRepo, Repo, RepoPipeline } from "./types.ts";
 
 const LISTING_INTERVAL_MS = 5 * 60 * 1000;
 const STATUS_INTERVAL_MS = 30 * 1000;
@@ -19,15 +18,10 @@ interface RepoPipelineResult {
   resolved: boolean;
 }
 
-let configuredGroups: GroupReference[] = [];
 let listingTimer: NodeJS.Timeout | null = null;
 let statusTimer: NodeJS.Timeout | null = null;
 let listingInFlight = false;
 let statusInFlight = false;
-
-export function configurePoller(groups: GroupReference[]): void {
-  configuredGroups = groups;
-}
 
 export function startPolling(): void {
   stopPolling();
@@ -79,31 +73,25 @@ function handleCycleError(error: unknown): void {
   console.error("[PipeBoard] GitLab polling cycle failed, keeping last known data");
 }
 
-async function resolveGroupName(
-  token: string,
-  groupRef: GroupReference,
-  fallback: string,
-): Promise<string> {
-  try {
-    const info = await fetchGroupInfo(token, groupRef);
-    const trimmed = info.name.trim();
-    return trimmed.length > 0 ? trimmed : fallback;
-  } catch (error) {
-    if (isAuthError(error) || isRateLimitError(error)) {
-      throw error;
-    }
-    return fallback;
-  }
+function selectRootGroups(groups: GitLabGroup[]): GitLabGroup[] {
+  const roots = groups.filter(
+    (group) =>
+      !groups.some(
+        (other) =>
+          other.full_path !== group.full_path &&
+          group.full_path.startsWith(`${other.full_path}/`),
+      ),
+  );
+  return roots.sort((a, b) => a.full_path.localeCompare(b.full_path));
 }
 
 async function buildGroupListing(
   token: string,
-  groupRef: GroupReference,
+  group: GitLabGroup,
 ): Promise<GroupPipelines> {
-  const normalized = String(groupRef);
+  const groupId = String(group.id);
   try {
-    const name = await resolveGroupName(token, groupRef, normalized);
-    const projects = await fetchGroupProjects(token, groupRef);
+    const projects = await fetchGroupProjects(token, group.id);
     const repos: Repo[] = projects.map((project) => ({
       id: project.id,
       name: project.name,
@@ -112,13 +100,13 @@ async function buildGroupListing(
       defaultBranch: project.default_branch,
       pipeline: null,
     }));
-    return { group: normalized, name, repos };
+    return { group: groupId, name: group.full_path, repos };
   } catch (error) {
     if (isAuthError(error) || isRateLimitError(error)) {
       throw error;
     }
-    console.error("[PipeBoard] GitLab listing failed for a configured group, keeping last known data");
-    return cache.getGroupSnapshot(normalized) ?? { group: normalized, name: normalized, repos: [] };
+    console.error("[PipeBoard] GitLab listing failed for a group, keeping last known data");
+    return cache.getGroupSnapshot(groupId) ?? { group: groupId, name: group.full_path, repos: [] };
   }
 }
 
@@ -133,9 +121,9 @@ async function runListingCycle(): Promise<void> {
   const epoch = getTokenEpoch();
   listingInFlight = true;
   try {
-    const groups = await mapWithConcurrency(configuredGroups, (groupRef) =>
-      buildGroupListing(token, groupRef),
-    );
+    const discovered = await fetchMembershipGroups(token);
+    const roots = selectRootGroups(discovered);
+    const groups = await mapWithConcurrency(roots, (group) => buildGroupListing(token, group));
     if (getTokenEpoch() === epoch) {
       cache.replaceListing(groups);
       cache.setRateLimited(false);

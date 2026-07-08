@@ -37,7 +37,6 @@ export interface PollableRepo {
 
 export interface GitLabGroup {
   id: number;
-  name: string;
   full_path: string;
 }
 

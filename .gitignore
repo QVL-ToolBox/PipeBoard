@@ -8,9 +8,6 @@ dist/
 .env.*
 !.env.example
 
-# Local config (real file ignored, .example committed)
-groups.json
-
 # Build info / logs
 *.tsbuildinfo
 *.log
