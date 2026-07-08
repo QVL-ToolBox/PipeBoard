@@ -10,7 +10,7 @@
     "dev": "concurrently -n front,back -c cyan,magenta \"npm:dev:front\" \"npm:dev:back\"",
     "dev:front": "vite",
     "dev:back": "tsx watch server/index.ts",
-    "build": "tsc && vite build",
+    "build": "tsc && npm run typecheck:server && vite build",
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "typecheck:server": "tsc --noEmit -p tsconfig.server.json"
   },
@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^20.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",

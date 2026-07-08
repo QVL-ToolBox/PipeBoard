@@ -18,6 +18,10 @@ app.get("/api/status", (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+app.all("/api/{*splat}", (_req: Request, res: Response) => {
+  res.status(404).json({ error: "Not Found" });
+});
+
 if (isProduction) {
   app.use(express.static(clientBuildDir));
   app.get("/{*splat}", (_req: Request, res: Response) => {
