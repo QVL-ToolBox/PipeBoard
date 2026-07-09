@@ -55,7 +55,7 @@ async function bootstrapCycles(): Promise<void> {
 }
 
 function isAuthError(error: unknown): boolean {
-  return error instanceof GitLabError && (error.status === 401 || error.status === 403);
+  return error instanceof GitLabError && error.status === 401;
 }
 
 function isRateLimitError(error: unknown): boolean {
