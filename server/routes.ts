@@ -10,6 +10,7 @@ const TOKEN_COOKIE_OPTIONS: CookieOptions = {
   httpOnly: true,
   sameSite: "strict",
   path: "/api",
+  maxAge: 1000 * 60 * 60 * 24 * 30,
 };
 
 function extractToken(body: unknown): string | null {
