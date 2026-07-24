@@ -106,7 +106,7 @@ export function App() {
   return (
     <ChThemeProvider defaultMode="system">
       <PageScaffold
-        title="PipeBoard"
+        navbarTitle="PipeBoard"
         items={navbarItems}
         activeHref={activeHref}
         onNavigate={setActiveHref}
